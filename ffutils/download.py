@@ -1,64 +1,81 @@
 import os
-import platform
 import shutil
 import stat
 import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Union
 
 import requests
 from tqdm import tqdm
 
-BIN_PATH = Path(__file__).parent / "bin"
-os.environ["PATH"] += os.pathsep + str(BIN_PATH)
-
+URL = "https://github.com/imageio/imageio-binaries/raw/master/ffmpeg/"
 BINARIES = {
-    "Linux": {"ffmpeg": "ffmpeg-linux64-v4.1", "ffprobe": "ffprobe-linux64-v4.1"},
-    "Darwin": {"ffmpeg": "ffmpeg-osx64-v4.1", "ffprobe": "ffprobe-osx64-v4.1"},
-    "Windows": {"ffmpeg": "ffmpeg-win64-v4.1.exe", "ffprobe": "ffprobe-win64-v4.1.exe"},
+    "linux": {"ffmpeg": "ffmpeg-linux64-v4.1", "ffprobe": "ffprobe-linux64-v4.1"},
+    "darwin": {"ffmpeg": "ffmpeg-osx64-v4.1", "ffprobe": "ffprobe-osx64-v4.1"},
+    "win32": {"ffmpeg": "ffmpeg-win64-v4.1.exe", "ffprobe": "ffprobe-win64-v4.1.exe"},
 }
 
+bin_ = Path(__file__).parent / "bin"
+os_ = sys.platform
+bin_.mkdir(parents=True, exist_ok=True)
+os.environ["PATH"] += os.pathsep + str(bin_)
 
-def get_ffmpeg_exe(ffmpeg: bool = True, ffprobe: bool = False) -> None:
+
+def get_ffmpeg_exe() -> str:
     """
-    Download the ffmpeg executable if not found in PATH.
+    Download the ffmpeg executable if not found.
 
-    Args:
-        ffmpeg (bool, optional): Whether to download ffmpeg. Defaults to True.
-        ffprobe (bool, optional): Whether to download ffprobe. Defaults to False.
+    Returns:
+        str: The absolute path to the ffmpeg executable.
     """
-    local_vars = locals().copy()
-    exes = [exe for exe in ["ffmpeg", "ffprobe"] if local_vars[exe] and not shutil.which(exe)]
+    exe = "ffmpeg"
 
-    if not exes:
-        return
+    if path := shutil.which(exe):
+        return path
 
-    BIN_PATH.mkdir(parents=True, exist_ok=True)
-    os_ = platform.system()
-
-    for exe in exes:
-        url = f"https://github.com/imageio/imageio-binaries/raw/master/ffmpeg/{BINARIES[os_][exe]}"
-        filename = BIN_PATH / f"{exe}.exe" if os_ == "Windows" else exe
-        print(f"{exe} was not found! downloading from imageio/imageio-binaries repository.")
-        temp = _download_exe(url, filename)
-        shutil.move(temp, filename)
-        os.chmod(filename, os.stat(filename).st_mode | stat.S_IEXEC)
+    url = URL + BINARIES[os_][exe]
+    filename = bin_ / f"{exe}.exe" if os_ == "win32" else exe
+    _download_exe(url, filename)
+    os.chmod(filename, os.stat(filename).st_mode | stat.S_IEXEC)
+    return str(filename)
 
 
-def _download_exe(url: str, filename: str | Path) -> str:
+def get_ffprobe_exe() -> str:
+    """
+    Download the ffprobe executable if not found.
+
+    Returns:
+        str: The absolute path to the ffprobe executable.
+    """
+    exe = "ffprobe"
+
+    if path := shutil.which(exe):
+        return path
+
+    url = URL + BINARIES[os_][exe]
+    filename = bin_ / f"{exe}.exe" if os_ == "win32" else exe
+    _download_exe(url, filename)
+    os.chmod(filename, os.stat(filename).st_mode | stat.S_IEXEC)
+    return str(filename)
+
+
+
+def _download_exe(url: str, filename: Union[str, Path]) -> None:
     r = requests.get(url, stream=True)
+    r.raise_for_status()
     file_size = int(r.headers.get("content-length", 0))
     chunk_size = 1024
 
     try:
         with NamedTemporaryFile(mode="wb", delete=False) as temp, tqdm(
-                desc=filename.name,
-                total=file_size,
-                ncols=80,
-                unit="iB",
-                unit_scale=True,
-                unit_divisor=1024,
-                leave=True,
+            desc=Path(filename).name,
+            total=file_size,
+            ncols=80,
+            unit="iB",
+            unit_scale=True,
+            unit_divisor=chunk_size,
+            leave=True,
         ) as bar:
             for chunk in r.iter_content(chunk_size=chunk_size):
                 size = temp.write(chunk)
@@ -67,4 +84,4 @@ def _download_exe(url: str, filename: str | Path) -> str:
         os.remove(temp.name)
         sys.exit(str(f))
 
-    return temp.name
+    shutil.move(temp.name, filename)

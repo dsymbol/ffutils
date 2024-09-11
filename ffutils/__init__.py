@@ -1,2 +1,2 @@
-from .download import get_ffmpeg_exe
+from .download import get_ffmpeg_exe, get_ffprobe_exe
 from .execute import ffprog
