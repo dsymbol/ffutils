@@ -1,6 +1,5 @@
 import os
 import shutil
-import stat
 import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -9,17 +8,34 @@ from typing import Union
 import requests
 from tqdm import tqdm
 
-URL = "https://github.com/imageio/imageio-binaries/raw/master/ffmpeg/"
-BINARIES = {
-    "linux": {"ffmpeg": "ffmpeg-linux64-v4.1", "ffprobe": "ffprobe-linux64-v4.1"},
-    "darwin": {"ffmpeg": "ffmpeg-osx64-v4.1", "ffprobe": "ffprobe-osx64-v4.1"},
-    "win32": {"ffmpeg": "ffmpeg-win64-v4.1.exe", "ffprobe": "ffprobe-win64-v4.1.exe"},
-}
-
 bin_ = Path(__file__).parent / "bin"
-os_ = sys.platform
 bin_.mkdir(parents=True, exist_ok=True)
 os.environ["PATH"] += os.pathsep + str(bin_)
+
+
+class BinaryDescriptor:
+    def __init__(self, exe: str):
+        self.exe = exe
+        self.os = sys.platform
+        self.path = self.set_path()
+        self.url = self.set_url()
+
+    def set_path(self):
+        if self.os == "win32":
+            path = f"{self.exe}.exe"
+        else:
+            path = self.exe
+        return bin_ / path
+
+    def set_url(self):
+        base_url = "https://github.com/imageio/imageio-binaries/raw/master/ffmpeg"
+        if self.os == "linux":
+            end = "linux64-v4.1"
+        elif self.os == "darwin":
+            end = "osx64-v4.1"
+        elif self.os == "win32":
+            end = "win64-v4.1.exe"
+        return f"{base_url}/{self.exe}-{end}"
 
 
 def get_ffmpeg_exe() -> str:
@@ -29,16 +45,16 @@ def get_ffmpeg_exe() -> str:
     Returns:
         str: The absolute path to the ffmpeg executable.
     """
-    exe = "ffmpeg"
+    bd = BinaryDescriptor("ffmpeg")
 
-    if path := shutil.which(exe):
+    if path := shutil.which(bd.exe):
         return path
 
-    url = URL + BINARIES[os_][exe]
-    filename = bin_ / f"{exe}.exe" if os_ == "win32" else exe
-    _download_exe(url, filename)
-    os.chmod(filename, os.stat(filename).st_mode | stat.S_IEXEC)
-    return str(filename)
+    _download_exe(bd.url, bd.path)
+    if bd.os != "win32":
+        os.chmod(bd.path, 0o755)
+
+    return str(bd.path)
 
 
 def get_ffprobe_exe() -> str:
@@ -48,17 +64,16 @@ def get_ffprobe_exe() -> str:
     Returns:
         str: The absolute path to the ffprobe executable.
     """
-    exe = "ffprobe"
+    bd = BinaryDescriptor("ffprobe")
 
-    if path := shutil.which(exe):
+    if path := shutil.which(bd.exe):
         return path
 
-    url = URL + BINARIES[os_][exe]
-    filename = bin_ / f"{exe}.exe" if os_ == "win32" else exe
-    _download_exe(url, filename)
-    os.chmod(filename, os.stat(filename).st_mode | stat.S_IEXEC)
-    return str(filename)
+    _download_exe(bd.url, bd.path)
+    if bd.os != "win32":
+        os.chmod(bd.path, 0o755)
 
+    return str(bd.path)
 
 
 def _download_exe(url: str, filename: Union[str, Path]) -> None:
