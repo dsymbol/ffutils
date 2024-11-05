@@ -1,16 +1,25 @@
 import os
 import shutil
 import sys
+import tempfile
+from functools import partial
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Union
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
-import requests
-from tqdm import tqdm
+from platformdirs import user_data_dir
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    Progress,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 
-bin_ = Path(__file__).parent / "bin"
-bin_.mkdir(parents=True, exist_ok=True)
-os.environ["PATH"] += os.pathsep + str(bin_)
+install_dir = Path(user_data_dir("ffutils"))
+os.environ["PATH"] += os.pathsep + str(install_dir)
 
 
 class BinaryDescriptor:
@@ -25,7 +34,7 @@ class BinaryDescriptor:
             path = f"{self.exe}.exe"
         else:
             path = self.exe
-        return bin_ / path
+        return install_dir / path
 
     def set_url(self):
         base_url = "https://github.com/imageio/imageio-binaries/raw/master/ffmpeg"
@@ -50,7 +59,9 @@ def get_ffmpeg_exe() -> str:
     if path := shutil.which(bd.exe):
         return path
 
-    _download_exe(bd.url, bd.path)
+    install_dir.mkdir(parents=True, exist_ok=True)
+
+    download(bd.url, bd.path)
     if bd.os != "win32":
         os.chmod(bd.path, 0o755)
 
@@ -69,34 +80,45 @@ def get_ffprobe_exe() -> str:
     if path := shutil.which(bd.exe):
         return path
 
-    _download_exe(bd.url, bd.path)
+    install_dir.mkdir(parents=True, exist_ok=True)
+
+    download(bd.url, bd.path)
     if bd.os != "win32":
         os.chmod(bd.path, 0o755)
 
     return str(bd.path)
 
 
-def _download_exe(url: str, filename: Union[str, Path]) -> None:
-    r = requests.get(url, stream=True)
-    r.raise_for_status()
-    file_size = int(r.headers.get("content-length", 0))
-    chunk_size = 1024
+def download(url: str, path: Union[str, os.PathLike] = None) -> None:
+    if not path:
+        path = urlparse(url).path.split("/")[-1]
 
-    try:
-        with NamedTemporaryFile(mode="wb", delete=False) as temp, tqdm(
-            desc=Path(filename).name,
-            total=file_size,
-            ncols=80,
-            unit="iB",
-            unit_scale=True,
-            unit_divisor=chunk_size,
-            leave=True,
-        ) as bar:
-            for chunk in r.iter_content(chunk_size=chunk_size):
-                size = temp.write(chunk)
-                bar.update(size)
-    except Exception as f:
-        os.remove(temp.name)
-        sys.exit(str(f))
+    progress = Progress(
+        TextColumn("[bold blue]{task.fields[filename]}", justify="right"),
+        BarColumn(bar_width=None),
+        "[progress.percentage]{task.percentage:>3.1f}%",
+        "•",
+        DownloadColumn(),
+        "•",
+        TransferSpeedColumn(),
+        "•",
+        TimeRemainingColumn(),
+    )
 
-    shutil.move(temp.name, filename)
+    with progress:
+        task_id = progress.add_task(
+            "download", filename=os.path.basename(path), start=False
+        )
+        response = urlopen(url)
+        progress.update(task_id, total=int(response.info().get("Content-length")))
+
+        try:
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                progress.start_task(task_id)
+                for data in iter(partial(response.read, 32768), b""):
+                    temp_file.write(data)
+                    progress.update(task_id, advance=len(data))
+            shutil.move(temp_file.name, path)
+        except Exception as e:
+            os.unlink(temp_file.name)
+            raise
