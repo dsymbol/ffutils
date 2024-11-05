@@ -95,7 +95,7 @@ def download(url: str, path: Union[str, os.PathLike] = None) -> None:
 
     progress = Progress(
         TextColumn("[bold blue]{task.fields[filename]}", justify="right"),
-        BarColumn(bar_width=None),
+        BarColumn(),
         "[progress.percentage]{task.percentage:>3.1f}%",
         "•",
         DownloadColumn(),

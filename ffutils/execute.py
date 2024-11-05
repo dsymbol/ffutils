@@ -3,7 +3,7 @@ import shlex
 import subprocess as sp
 from typing import Union
 
-from tqdm import tqdm
+from rich.progress import Progress
 
 
 def ffprog(command: Union[list, str], desc: str = None, cwd: str = None) -> None:
@@ -39,25 +39,30 @@ def ffprog(command: Union[list, str], desc: str = None, cwd: str = None) -> None
         universal_newlines=True,
         text=True,
         cwd=cwd,
-    ) as p:
-        with tqdm(total=None, desc=desc, leave=True) as t:
-            for line in p.stdout:
-                output.append(line)
-                if duration_exp.search(line):
-                    duration = duration_exp.search(line).groups()
-                    t.total = (
-                        int(duration[0]) * 3600
-                        + int(duration[1]) * 60
-                        + int(duration[2])
-                    )
-                elif progress_exp.search(line):
-                    progress = progress_exp.search(line).groups()
-                    t.update(
-                        int(progress[0]) * 3600
-                        + int(progress[1]) * 60
-                        + int(progress[2])
-                        - t.n
-                    )
+    ) as p, Progress() as progress:
+        task = progress.add_task(f'[cyan]{desc or "Processing..."}', total=None)
+        for line in p.stdout:
+            output.append(line)
+            if duration_exp.search(line):
+                total_duration = duration_exp.search(line).groups()
+                progress.update(
+                    task,
+                    total=(
+                        int(total_duration[0]) * 3600
+                        + int(total_duration[1]) * 60
+                        + int(total_duration[2])
+                    ),
+                )
+            elif progress_exp.search(line):
+                current_progress = progress_exp.search(line).groups()
+                progress.update(
+                    task,
+                    completed=(
+                        int(current_progress[0]) * 3600
+                        + int(current_progress[1]) * 60
+                        + int(current_progress[2])
+                    ),
+                )
 
     if p.returncode != 0:
         message = "\n".join(

@@ -8,7 +8,7 @@ setup(
     license="OSI Approved :: MIT License",
     author="dsymbol",
     description="Utilities for working with ffmpeg",
-    install_requires=["tqdm", "rich==13.9.4", "platformdirs==4.3.6"],
+    install_requires=["rich==13.9.4", "platformdirs==4.3.6"],
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     classifiers=[
