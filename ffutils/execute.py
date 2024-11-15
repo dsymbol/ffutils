@@ -6,7 +6,7 @@ from typing import Union
 from rich.progress import Progress
 
 
-def ffprog(command: Union[list, str], desc: str = None, cwd: str = None) -> None:
+def ffprog(command: Union[list, str], desc: str = "Processing...", cwd: str = None) -> None:
     """
     Execute a ffmpeg command with progress.
 
@@ -17,9 +17,6 @@ def ffprog(command: Union[list, str], desc: str = None, cwd: str = None) -> None
 
     Raises:
         RuntimeError: If an error occurs while running the command.
-
-    Adapted from Martin Larralde's code https://github.com/althonos/ffpb
-    Personalized for my (dsymbol) use.
     """
     command = command if isinstance(command, list) else shlex.split(command)
 
@@ -40,7 +37,7 @@ def ffprog(command: Union[list, str], desc: str = None, cwd: str = None) -> None
         text=True,
         cwd=cwd,
     ) as p, Progress() as progress:
-        task = progress.add_task(f'[cyan]{desc or "Processing..."}', total=None)
+        task = progress.add_task(f'[green]{desc}', total=None)
         for line in p.stdout:
             output.append(line)
             if duration_exp.search(line):
