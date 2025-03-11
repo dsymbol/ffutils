@@ -26,7 +26,7 @@ class BinaryDescriptor:
         return install_dir / path
 
     def set_url(self):
-        base_url = "https://github.com/imageio/imageio-binaries/raw/master/ffmpeg"
+        base_url = "https://github.com/imageio/imageio-binaries/raw/183aef992339cc5a463528c75dd298db15fd346f/ffmpeg/"
         if self.os == "linux":
             end = "linux64-v4.1"
         elif self.os == "darwin":

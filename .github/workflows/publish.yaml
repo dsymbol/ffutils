@@ -22,7 +22,7 @@ jobs:
     - name: Set version
       run: |
         version=$(date +"%Y.%m.%d")
-        sed -i "s/version=\"\"/version=\"$version\"/" ./setup.py
+        sed -i "s/# version=\"\"/version=\"$version\"/" ./setup.py
     - name: Build package
       run: python -m build
     - name: Publish package

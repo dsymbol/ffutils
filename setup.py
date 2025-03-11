@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="ffutils",
-    version="",
+    # version="",
     packages=find_packages(),
     url="https://github.com/dsymbol/ffutils",
     license="OSI Approved :: MIT License",
